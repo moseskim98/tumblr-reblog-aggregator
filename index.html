@@ -2,101 +2,109 @@
 <html>
   <head>
     <meta charset="utf-8">
-		<link href="styles/style.css" rel="stylesheet">
-		<link rel="icon" href="images/favicon.ico" type="image/x-icon" />
-	  <title>Tumblr Reblog Tag Aggregator</title>
-	</head>
-	<body>
-		<h1>Tumblr Reblog Tags Aggregator</h1>
-	  <img src="images/pound.png" alt="pound">
-		<p>because tags are the highest form of art</p>
-		<form>
-		  <p>Post: <input type="url" id="post"></p>
-		  <p>API Key: <input type="text" id="api_key"></p>
-		  <p>Singleton Tags Only <input type="checkbox" id="singleton"></p>
-		  <p><button>Compile Reblog Tags</button></p>
-		</form>
-		<div></div>
-		<script>
-		
-			const baseURL = 'https://api.tumblr.com';
-			const keyInput = document.querySelector('#api_key');
-			const singleton = document.querySelector('#singleton');
-			let url;
-			let key;
-			let singletonToggle;
-			
-			const post = document.querySelector('#post');
-			const postForm = document.querySelector('form');
-			const tagsResult = document.querySelector('div');
-			const tags = new Map();
-			
-			postForm.addEventListener('submit', submitPost);
-			
-			function submitPost(e) {
-			  e.preventDefault();
-			  
-			  while (tagsResult.firstChild) {
-			    tagsResult.removeChild(tagsResult.firstChild);
-				tags.clear();
-			  }
-			  
-			  key = keyInput.value;
-			  const tokens = post.value.split('/');
-			  const blog_id = tokens[2];
-			  const post_id = tokens[4];
-			  
-			  url = `${baseURL}/v2/blog/${blog_id}/notes?api_key=${key}&id=${post_id}&mode=reblogs_with_tags`;
-			  buildTags(url);
-			}
-			
-			function buildTags(url) {
-			  fetch(url, {mode: 'cors'}).then(response => response.json()).then(json => {
-			    if (json.errors && json.meta.status != 429) {
-				  throw new Error();
-				}
-				
-				if (json.response.notes) {
-			      for (const note of json.response.notes) {
-				    if (note.tags) {
-			          for (const tag of note.tags) {
-				        if (tags.has(tag)) {
-				          tags.set(tag, tags.get(tag) + 1);
-				        } else {
-				          tags.set(tag, 1);
-				        }
-				      }
-				    }
-			      }
-				}
-				
-			    if (json.response._links) {
-				  buildTags(`${baseURL}${json.response._links.next.href}&api_key=${key}`);
-				} else {
+        <link href="styles/style.css" rel="stylesheet">
+        <link rel="icon" href="images/favicon.ico" type="image/x-icon" />
+      <title>Tumblr Reblog Tag Aggregator</title>
+    </head>
+    <body>
+        <h1>Tumblr Reblog Tags Aggregator</h1>
+      <img src="images/pound.png" alt="pound">
+        <p>because tags are the highest form of art</p>
+        <form>
+          <p>Post: <input type="url" id="post"></p>
+          <p>API Key: <input type="text" id="api_key"></p>
+          <p>Singleton Tags Only <input type="checkbox" id="singleton"></p>
+          <p><button>Compile Reblog Tags</button></p>
+        </form>
+        <div></div>
+        <script>
+        
+            const baseURL = 'https://api.tumblr.com';
+            const keyInput = document.querySelector('#api_key');
+            const singleton = document.querySelector('#singleton');
+            let url;
+            let key;
+            let singletonToggle;
+            
+            const post = document.querySelector('#post');
+            const postForm = document.querySelector('form');
+            const tagsResult = document.querySelector('div');
+            const tags = new Map();
+            
+            postForm.addEventListener('submit', submitPost);
+            
+            function submitPost(e) {
+              e.preventDefault();
+              
+              while (tagsResult.firstChild) {
+                tagsResult.removeChild(tagsResult.firstChild);
+                tags.clear();
+              }
+              
+              key = keyInput.value;
+              const tokens = post.value.split('/');
+			  let blog_id;
+			  let post_id;
+              if (tokens[2] === 'www.tumblr.com') {
+                blog_id = tokens[5] + '.tumblr.com';
+                post_id = tokens[6].split('?')[0];
+              } else {
+                blog_id = tokens[2];
+                post_id = tokens[4];
+              }
+              
+              
+              url = `${baseURL}/v2/blog/${blog_id}/notes?api_key=${key}&id=${post_id}&mode=reblogs_with_tags`;
+              buildTags(url);
+            }
+            
+            function buildTags(url) {
+              fetch(url, {mode: 'cors'}).then(response => response.json()).then(json => {
+                if (json.errors && json.meta.status != 429) {
+                  throw new Error();
+                }
+                
+                if (json.response.notes) {
+                  for (const note of json.response.notes) {
+                    if (note.tags) {
+                      for (const tag of note.tags) {
+                        if (tags.has(tag)) {
+                          tags.set(tag, tags.get(tag) + 1);
+                        } else {
+                          tags.set(tag, 1);
+                        }
+                      }
+                    }
+                  }
+                }
+                
+                if (json.response._links) {
+                  buildTags(`${baseURL}${json.response._links.next.href}&api_key=${key}`);
+                } else {
 
-				  if (json.meta.status === 429) {
-				    const rate_limit = document.createElement('p');
-				    rate_limit.textContent = 'Hit the rate limit. Try again later.';
-				    tagsResult.appendChild(rate_limit);
-				  }
+                  if (json.meta.status === 429) {
+                    const rate_limit = document.createElement('p');
+                    rate_limit.textContent = 'Hit the rate limit. Try again later.';
+                    tagsResult.appendChild(rate_limit);
+                  }
 
-				  for (const pair of new Map([...tags.entries()].sort((a, b) => b[1] - a[1]))) {
-				  	if (singleton.checked == false || pair[1] == 1) {
-				  		const tag = document.createElement('div');
-				      tag.textContent = `${pair[0]} (${pair[1]})`;
-				      tagsResult.appendChild(tag);
-				  	}
-			    }
-				}
-			  }).catch((e) => {
-				console.log(e);
-			    const error = document.createElement('div');
-				error.textContent = 'nope';
-				tagsResult.appendChild(error);
-			  });
-			}
-		
-		</script>
-		<p id="ghp"><a href="https://github.com/moseskim98">My GitHub</a></p>
+                  for (const pair of new Map([...tags.entries()].sort((a, b) => b[1] - a[1]))) {
+                    if (singleton.checked == false || pair[1] == 1) {
+                      const tag = document.createElement('div');
+                      tag.textContent = `${pair[0]} (${pair[1]})`;
+                      tagsResult.appendChild(tag);
+                    }
+                }
+                }
+              }).catch((e) => {
+                console.log(e);
+                const error = document.createElement('div');
+                error.textContent = 'nope';
+                tagsResult.appendChild(error);
+              });
+            }
+        
+        </script>
+        <p id="ghp"><a href="https://github.com/moseskim98">My GitHub</a></p>
   </body>
 </html> 
